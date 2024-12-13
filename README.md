@@ -11,3 +11,7 @@ Nu este necesar un GUI (datele se pot afișa și în consola).Trebuie sa fie tot
 reprezentare clară a acestor date (sa se inteleaga ce anume reprezinta).
 Traficul se capturează cu ajutorul bibliotecii socket iar decodarea pachetelor se va
 face cu struct/ctypes
+
+## Resources
+### Socket - Library
+-https://docs.python.org/3/library/socket.html#socket-families
