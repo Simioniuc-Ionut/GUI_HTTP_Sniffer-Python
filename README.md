@@ -50,3 +50,8 @@ face cu struct/ctypes
 <img src = "imgs/Transport-TCP-Layer.png">
 <img src = "imgs/Transport-UDP-Layer.png">
 <img src = "imgs/Application-Layer.png">
+
+http://example.com este un site de testare standard utilizat pentru exemple și documentație.
+http://neverssl.com este un site creat special pentru a nu folosi HTTPS, util pentru testare și depanare.
+http://httpforever.com este un site simplu care servește conținut prin HTTP.
+http://httpbin.org este un serviciu de testare HTTP care oferă diverse endpoint-uri pentru testarea cererilor HTTP.

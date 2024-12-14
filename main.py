@@ -35,23 +35,33 @@ def sniffest_pack():
         network_layer_data,transport_layer_raw_data = IP_header_packet(raw_data)
         print_network_layer_data(network_layer_data,transport_layer_raw_data)
         protocol = network_layer_data[7]
-        if protocol == 6: # TCP protocol
+        
+        handler_protocols(protocol,transport_layer_raw_data)
+        
+def handler_protocols(protocol,transport_layer_raw_data):
+    dsc_port = 0
+    # Transport layer
+    if protocol == 6: # TCP protocol
             transport_layer_data,application_layer_data = TCP_Transport_header_packet(transport_layer_raw_data)
             print_tcp_transport_layer_data(transport_layer_data,application_layer_data)
-        elif protocol == 7: # UDP protocol
-            transport_layer_data,application_layer_data = UDP_Transport_header_packet(transport_layer_data)
+            dsc_port = transport_layer_data[1]
+    elif protocol == 17: # UDP protocol
+            transport_layer_data,application_layer_data = UDP_Transport_header_packet(transport_layer_raw_data)
             print_udp_transport_layer_data(transport_layer_data,application_layer_data)
+            dsc_port = transport_layer_data[1]
+    
+    # Application layer
+    # HTTPS 
+    if dsc_port == 443: 
+        print("HTTPS protocol")
+    elif dsc_port == 80:
+        # print("HTTP protocol")            
+        application_layer_data = HTTP_application_layer(application_layer_data)
+        print_application_layer_data(application_layer_data)
+    else :
+        print("Unknown protocol")
         
-        dsc_port = transport_layer_data[1]
         
-        # HTTPS 
-        if dsc_port == 443: 
-            print("HTTPS protocol")
-        elif dsc_port == 80:
-            # print("HTTP protocol")            
-            application_layer_data = HTTP_application_layer(application_layer_data)
-            print_application_layer_data(application_layer_data)
-
 # Network layer (ipv4 and ipv6 only)
 def IP_header_packet(data):
     """
@@ -280,7 +290,7 @@ def TCP_Transport_header_packet(data):
     # Calculate options and padding
     options_and_padding_length = offset - 20  # Total Length of Options and Padding
     # Extract options and padding
-    options_and_padding = data[20:offset] if options_and_padding_length > 0 else b''
+    options_and_padding = data[20:20 + offset] if options_and_padding_length > 0 else b''
     # Rest of the packet (payload)
     rest_of_packet = data[offset:]
     # Return the unpacked data
@@ -361,27 +371,54 @@ def HTTP_application_layer(application_layer_data):
     """
     Parses the application layer data from raw packet data.
     
-    This function extracts the application layer data from a network packet.
+    This function extracts the application layer data from a network packet and transforms it into a dictionary.
     
     Args:
     application_layer_data (bytes): The raw packet data containing the application layer data.
     
     Returns:
-    str: The application layer data.
+    dict: The application layer data as a dictionary.
     """
     try:
-            # Decode the raw packet data to a string
-            decoded_data = application_layer_data.decode('utf-8', errors='ignore')
-            return decoded_data
-    except UnicodeDecodeError:
-            return "Failed to decode application layer data"
+        # Decode the raw packet data to a string
+        decoded_data = application_layer_data.decode('utf-8', errors='ignore')
         
+        # Strip any leading/trailing whitespace or non-printable characters
+        decoded_data = decoded_data.strip()
+        
+        # Split the data into lines
+        lines = decoded_data.split('\r\n')
+        
+        # Initialize the dictionary to store the parsed data
+        http_data = {}
+        
+        request_line = 'HTTP Request Line Not Found'
+        
+        for i in range(0, len(lines[0])):
+            if lines[0][i:i+3] in ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'TRACE'):
+                request_line= lines[0][i:]
+            
+        # The first line is the Request Line
+        http_data['Request Line'] = request_line
+        
+        # The rest are Header Fields until an empty line is encountered
+        for line in lines[1:]:
+            if line == '':
+                break
+            key, value = line.split(': ', 1)
+            http_data[key] = value
+        
+        return http_data
+    except UnicodeDecodeError:
+        return {"Error": "Failed to decode application layer data"}
+
 def print_application_layer_data(application_layer_data):
     """
     Prints the application layer details.
     """
     print("______Application Layer (HTTP)______")
-    print(application_layer_data)
+    for key, value in application_layer_data.items():
+        print(f"{key}: {value}")
     print("-" * 50)
 if __name__ == '__main__':
     sniffest_pack()
