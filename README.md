@@ -15,3 +15,34 @@ face cu struct/ctypes
 ## Resources
 ### Socket - Library
 -https://docs.python.org/3/library/socket.html#socket-families
+### Ethernet Frame Format
+-https://www.geeksforgeeks.org/ethernet-frame-format/
+### OSI Model - 7 Layers
+-https://www.geeksforgeeks.org/open-systems-interconnection-model-osi/
+### TCP/IP Model - 4 Layers
+-https://www.geeksforgeeks.org/tcp-ip-model/
+### TCP/IP Format
+-https://www.geeksforgeeks.org/tcp-ip-packet-format/
+### Struct - Library
+-https://docs.python.org/3/library/struct.html#struct.pack
+
+[ Ethernet Frame ]
+| Destination MAC Address (6 bytes) | Source MAC Address (6 bytes) | Protocol Type (2 bytes) |
+|---------------------------------------------------------------------------|
+|                 Payload (rest of the frame)                        |
+
+[ IP Header ] 
+| Version | IHL | Type of Service | Total Length | Identification | Flags | Fragment Offset |
+| Time to Live | Protocol | Header Checksum | Source IP | Destination IP |
+
+[ TCP Header ]
+| Source Port | Destination Port | Sequence Number | Acknowledgment Number | Data Offset |
+| Reserved | Flags | Window | Checksum | Urgent Pointer |
+
+[ HTTP Request (Payload) ]
+| Method (GET, POST, etc.) | URL | HTTP Version |
+| Headers: Host, User-Agent, etc. |
+| Body (if applicable) |
+
+
+<img src = "imgs\Network-Layer(3).png">
