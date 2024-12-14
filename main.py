@@ -32,17 +32,26 @@ def sniffest_pack():
         raw_data, addr = conn.recvfrom(65536)
         # print("Address: ", addr)
         # print("Raw data: ", raw_data)
-        network_layer_data,transport_layer_data = IP_header_packet(raw_data)
-        print_network_layer_data(network_layer_data,transport_layer_data)
+        network_layer_data,transport_layer_raw_data = IP_header_packet(raw_data)
+        print_network_layer_data(network_layer_data,transport_layer_raw_data)
         protocol = network_layer_data[7]
         if protocol == 6: # TCP protocol
-            transport_layer_data,application_layer_data = TCP_Transport_header_packet(transport_layer_data)
+            transport_layer_data,application_layer_data = TCP_Transport_header_packet(transport_layer_raw_data)
             print_tcp_transport_layer_data(transport_layer_data,application_layer_data)
         elif protocol == 7: # UDP protocol
             transport_layer_data,application_layer_data = UDP_Transport_header_packet(transport_layer_data)
             print_udp_transport_layer_data(transport_layer_data,application_layer_data)
         
+        dsc_port = transport_layer_data[1]
         
+        # HTTPS 
+        if dsc_port == 443: 
+            print("HTTPS protocol")
+        elif dsc_port == 80:
+            # print("HTTP protocol")            
+            application_layer_data = HTTP_application_layer(application_layer_data)
+            print_application_layer_data(application_layer_data)
+
 # Network layer (ipv4 and ipv6 only)
 def IP_header_packet(data):
     """
@@ -110,7 +119,7 @@ def IP_header_packet(data):
     # Calculate options and padding
     options_and_padding_length = ihl - 20  # Total Length of Options and Paddin
     # Extrage câmpurile Options și Padding
-    options_and_padding = data[20:options_and_padding_length]
+    options_and_padding = data[20:20 + options_and_padding_length] if options_and_padding_length > 0 else b''
     
     # Rest of transport layer data
     transport_layer_data = data[ihl:]
@@ -254,7 +263,9 @@ def TCP_Transport_header_packet(data):
     # Acknowledgment Number (4 bytes)
     acknowledgment = tcp_transport_header[3]
     # Data Offset (4 bits)
-    offset = (tcp_transport_header[4] >> 4) * 4
+    offset = (tcp_transport_header[4] >> 4) & 0xF  # Extract the 4-bit data offset field
+    offset *= 4  # Convert to bytes
+    # Reserved (3 bits)
     # Reserved (3 bits)
     reserved = (tcp_transport_header[4] & 0xE) >> 1 # 0x0E = 00001110
     # Flags (9 bits)
@@ -268,11 +279,10 @@ def TCP_Transport_header_packet(data):
     
     # Calculate options and padding
     options_and_padding_length = offset - 20  # Total Length of Options and Padding
-    # Extrage câmpurile Options și Padding
-    options_and_padding = data[20:options_and_padding_length]
-    # Rest of the packet
+    # Extract options and padding
+    options_and_padding = data[20:offset] if options_and_padding_length > 0 else b''
+    # Rest of the packet (payload)
     rest_of_packet = data[offset:]
-    
     # Return the unpacked data
     return (src_port, dst_port, sequence, acknowledgment, offset, reserved, flags, window, checksum, urgent_pointer,options_and_padding),rest_of_packet
     
@@ -346,7 +356,33 @@ def print_udp_transport_layer_data(transport_layer, raw_data):
     print(f"Raw header: {raw_data[:8].hex()}")
     print("-" * 50)
 
-
+# Application layer
+def HTTP_application_layer(application_layer_data):
+    """
+    Parses the application layer data from raw packet data.
+    
+    This function extracts the application layer data from a network packet.
+    
+    Args:
+    application_layer_data (bytes): The raw packet data containing the application layer data.
+    
+    Returns:
+    str: The application layer data.
+    """
+    try:
+            # Decode the raw packet data to a string
+            decoded_data = application_layer_data.decode('utf-8', errors='ignore')
+            return decoded_data
+    except UnicodeDecodeError:
+            return "Failed to decode application layer data"
+        
+def print_application_layer_data(application_layer_data):
+    """
+    Prints the application layer details.
+    """
+    print("______Application Layer (HTTP)______")
+    print(application_layer_data)
+    print("-" * 50)
 if __name__ == '__main__':
     sniffest_pack()
 
