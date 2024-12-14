@@ -45,4 +45,8 @@ face cu struct/ctypes
 | Body (if applicable) |
 
 
-<img src = "imgs\Network-Layer(3).png">
+<img src = "imgs\Network-Layer-ipv4.png">
+<img src = "imgs\Network-Layer-ipv6.png">
+<img src = "imgs/Transport-TCP-Layer.png">
+<img src = "imgs/Transport-UDP-Layer.png">
+<img src = "imgs/Application-Layer.png">
