@@ -1,7 +1,11 @@
 import socket as socket
 import struct as struct
 import os
+import time
 import ctypes as ctypes
+
+# Dictionary for storing and retrieving fragmented packets
+fragmented_packets = {}
 
 def is_admin():
     try:
@@ -37,7 +41,6 @@ def sniffest_pack():
         # Parse packet of raw data
         handler_protocols(raw_data)
         
-        
 def handler_protocols(raw_data):
     try:
         # Network layer
@@ -51,6 +54,20 @@ def handler_protocols(raw_data):
                 print_tcp_transport_layer_data(transport_layer_data,application_layer_data)
                 src_port = transport_layer_data[0]
                 dsc_port = transport_layer_data[1]
+                
+                # Verify TCP Flags
+                flags = transport_layer_data[6]
+                if flags & 0x01:  # FIN flag
+                    print("TCP connection closed (FIN).")
+                    cleanup_connection(src_port, dsc_port)
+                    return
+                elif flags & 0x04:  # RST flag
+                    print("TCP connection reset (RST).")
+                    cleanup_connection(src_port, dsc_port)
+                    return
+                elif flags & 0x10:  # ACK flag
+                    pass
+                    # print("TCP acknowledgment packet (ACK).")
                 
             except Exception as e:
                 print(f"_______Error at TCP parser: {e}")
@@ -74,7 +91,7 @@ def handler_protocols(raw_data):
             print("HTTPS protocol")
         elif dsc_port == 80:
             try:
-                application_layer_data = HTTP_application_layer(application_layer_data)
+                application_layer_data = HTTP_application_layer(application_layer_data,src_port, dsc_port)
                 print_application_layer_data(application_layer_data)
             except Exception as e:
                 print(f"_______Error parsing HTTP application layer: {e}")
@@ -84,7 +101,7 @@ def handler_protocols(raw_data):
             print("HTTPS Response")
         elif src_port == 80:
             try:
-                response_layer_data = HTTP_response_layer(application_layer_data)
+                response_layer_data = HTTP_response_layer(application_layer_data,src_port, dsc_port)
                 print_http_response_layer_data(response_layer_data)
             except Exception as e:
                 print(f"Error parsing HTTP response layer: {e}")
@@ -92,6 +109,17 @@ def handler_protocols(raw_data):
             print("Unknown protocol")
     except Exception as e:
         print(f"_______Error at parser: {e}")
+        
+        
+# Tested
+def cleanup_connection(src_port, dsc_port):
+    """
+    Cleanup the fragmented packets and the connection associated with the given ports.
+    """
+    key = (src_port, dsc_port)
+    if key in fragmented_packets:
+        del fragmented_packets[key]
+        print(f"Packets associated with the connecction {key} was deleted.")
         
 # Network layer (ipv4 and ipv6 only)
 def IP_header_packet(data):
@@ -361,7 +389,7 @@ def UDP_Transport_header_packet(data):
         return None, None
 
 # Application layer
-# Tested Methods: GET, POST, HEAD, PUT, DELETE, OPTIONS, PATCH
+# Tested
 def find_http_method(decoded_data):
     start_index = -1
     for i in range(len(decoded_data)):
@@ -374,8 +402,8 @@ def find_http_method(decoded_data):
     # Extract the valid HTTP data starting from the Request Line
     valid_http_data = decoded_data[start_index:]
     return valid_http_data
-
-def HTTP_application_layer(application_layer_data):
+# Tested
+def HTTP_application_layer(application_layer_data,src_port, dst_port):
     """
     Parses the application layer data from raw packet data.
     
@@ -388,13 +416,23 @@ def HTTP_application_layer(application_layer_data):
     dict: The application layer data as a dictionary.
     """
     try:
+        # Generate a unique key for the packet
+        key = (src_port, dst_port)
+        
+        # Store the packet data in the dictionary
+        if key not in fragmented_packets:
+            fragmented_packets[key] = b''
+        fragmented_packets[key] += application_layer_data
+
+        
         # Decode the raw packet data to a string
-        decoded_data = application_layer_data.decode('utf-8', errors='ignore')
+        decoded_data = fragmented_packets[key].decode('utf-8', errors='ignore')
+        
         
         # Strip any leading/trailing whitespace or non-printable characters
         decoded_data = decoded_data.strip()
         # Debug: Print the raw decoded data
-        print("Raw STRIP decoded data:", decoded_data)
+        # print("Raw decoded data:", decoded_data)
         
         # Extract methdods from raw decoded data and convert them to a valid http data structure
         valid_http_data = find_http_method(decoded_data)
@@ -424,6 +462,8 @@ def HTTP_application_layer(application_layer_data):
         return {"Error": "Failed to parse HTTP application layer"}
 
 #HTTP response
+
+# Tested
 def find_http_status_line(decoded_data):
     """
     Finds the start index of the HTTP status line in the decoded data.
@@ -446,7 +486,7 @@ def find_http_status_line(decoded_data):
     # Extract the valid HTTP data starting from the Status Line
     valid_http_data = decoded_data[start_index:]
     return valid_http_data
-
+# Tested
 def parse_http_headers_and_body(valid_http_data):
     """
     Parses the HTTP headers and body from the valid HTTP data.
@@ -483,8 +523,8 @@ def parse_http_headers_and_body(valid_http_data):
         http_data['Body'] = body
     
     return http_data
-
-def HTTP_response_layer(response_layer_data):
+# Tested
+def HTTP_response_layer(response_layer_data, src_port, dst_port):
     """
     Parses the HTTP response layer data from raw packet data.
     
@@ -497,8 +537,18 @@ def HTTP_response_layer(response_layer_data):
     dict: The HTTP response layer data as a dictionary.
     """
     try:
+        
+        # Generate a unique key for the packet
+        key = (src_port, dst_port)
+        
+        # Store the packet data in the dictionary
+        if key not in fragmented_packets:
+            fragmented_packets[key] = b''
+        fragmented_packets[key] += response_layer_data
+
         # Decode the raw packet data to a string
-        decoded_data = response_layer_data.decode('utf-8', errors='ignore')
+        decoded_data = fragmented_packets[key].decode('utf-8', errors='ignore')
+        
         
         # Debug: Print the raw decoded data
         # print("Raw decoded data:", decoded_data)
@@ -557,7 +607,7 @@ def print_tcp_transport_layer_data(transport_layer, raw_data):
     print("______Transport Layer (TCP)______")
     print(f"Source Port: {src_port}, Destination Port: {dst_port}")
     print(f"Sequence Number: {sequence}, Acknowledgment: {acknowledgment}")
-    print(f"Data Offset: {offset}, Reserved: {reserved}, Flags: {flags}")
+    print(f"Data Offset: {offset}, Reserved: {reserved}, Flags: {format_tcp_flags(flags)}")
     print(f"Window Size: {window}, Checksum: {checksum}, Urgent Pointer: {urgent_pointer}")
     print(f"Options and Padding: {options_and_padding}")
     print(f"Raw header: {raw_data[:20].hex()}")
@@ -582,13 +632,46 @@ def print_network_layer_data(network_layer,raw_data,protocol):
     version, ihl, tos, length, id, flags_fragment, ttl, checksum, src, dst,options_and_padding = network_layer
     print("______Network Layer______")
     print(f"IP Version: {version}, Header Length: {ihl}, ToS: {tos}, Total Length: {length}")
-    print(f"Identification: {id}, Flags/Fragment: {flags_fragment}, TTL: {ttl}, Protocol: {protocol}")
+    print(f"Identification: {id}, Flags/Fragment: {format_ip_flags(flags_fragment)}, TTL: {ttl}, Protocol: {protocol}")
     print(f"Header Checksum: {checksum}")
     print(f"Source IP: {src}, Destination IP: {dst}")
     print(f"Options and Padding: {options_and_padding}")
     print(f"Raw header: {raw_data[:20].hex()}")
     print("-" * 50)
 
+def format_tcp_flags(flags_fragment):
+    """
+    Converts the flags/fragment field to a human-readable string.
+    """
+    flags = []
+    if flags_fragment & 0x01:
+        flags.append("FIN")
+    if flags_fragment & 0x02:
+        flags.append("SYN")
+    if flags_fragment & 0x04:
+        flags.append("RST")
+    if flags_fragment & 0x08:
+        flags.append("PSH")
+    if flags_fragment & 0x10:
+        flags.append("ACK")
+    if flags_fragment & 0x20:
+        flags.append("URG")
+    if flags_fragment & 0x40:
+        flags.append("ECE")
+    if flags_fragment & 0x80:
+        flags.append("CWR")
+    return ', '.join(flags) if flags else "None"
+
+def format_ip_flags(flags_fragment):
+    """
+    Converts the IP flags field to a human-readable string.
+    """
+    flag_descriptions = []
+    if flags_fragment & 0x4000:
+        flag_descriptions.append("DF")
+    if flags_fragment & 0x2000:
+        flag_descriptions.append("MF")
+    return ', '.join(flag_descriptions) if flag_descriptions else "None"
 
 if __name__ == '__main__':
     sniffest_pack()
