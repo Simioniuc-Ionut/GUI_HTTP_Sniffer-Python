@@ -171,20 +171,6 @@ def IP_header_packet(data):
         print(f"______Error parsing IP header: {e}")
         return None, None, None
 
-def print_network_layer_data(network_layer,raw_data,protocol):
-    """
-    Prints the network layer details.
-    """
-    version, ihl, tos, length, id, flags_fragment, ttl, checksum, src, dst,options_and_padding = network_layer
-    print("______Network Layer______")
-    print(f"IP Version: {version}, Header Length: {ihl}, ToS: {tos}, Total Length: {length}")
-    print(f"Identification: {id}, Flags/Fragment: {flags_fragment}, TTL: {ttl}, Protocol: {protocol}")
-    print(f"Header Checksum: {checksum}")
-    print(f"Source IP: {src}, Destination IP: {dst}")
-    print(f"Options and Padding: {options_and_padding}")
-    print(f"Raw header: {raw_data[:20].hex()}")
-    print("-" * 50)
-
 def IPv6_header_packet(data):
     """
     Parses the IPv6 header from raw packet data.
@@ -245,18 +231,6 @@ def IPv6_header_packet(data):
     except Exception as e:
         print(f"______Error parsing IPv6 header: {e}")
         return None, None
-
-def print_ipv6_network_layer_data(network_layer, raw_data):
-    """
-    Prints the IPv6 network layer details.
-    """
-    version, traffic_class, flow_label, payload_length, next_header, hop_limit, src, dst = network_layer
-    print("______Network Layer (IPv6)______")
-    print(f"IP Version: {version}, Traffic Class: {traffic_class}, Flow Label: {flow_label}")
-    print(f"Payload Length: {payload_length}, Next Header: {next_header}, Hop Limit: {hop_limit}")
-    print(f"Source IP: {src}, Destination IP: {dst}")
-    print(f"Raw header: {raw_data[:40].hex()}")
-    print("-" * 50)
 
 # Transport layer (tcp and udp only)
 def TCP_Transport_header_packet(data):
@@ -330,7 +304,7 @@ def TCP_Transport_header_packet(data):
         # Calculate options and padding
         options_and_padding_length = offset - 20  # Total Length of Options and Padding
         # Extract options and padding
-        options_and_padding = data[20:20 + offset] if options_and_padding_length > 0 else b''
+        options_and_padding = data[20:offset] if options_and_padding_length > 0 else b''
         # Rest of the packet (payload)
         rest_of_packet = data[offset:]
         # Return the unpacked data
@@ -386,34 +360,21 @@ def UDP_Transport_header_packet(data):
         print(f"______Error parsing UDP transport header: {e}")
         return None, None
 
-def print_tcp_transport_layer_data(transport_layer, raw_data):
-    """
-    Prints the transport layer details.
-    """
-    src_port, dst_port, sequence, acknowledgment, offset, reserved, flags, window, checksum, urgent_pointer,options_and_padding = transport_layer
-    
-    print("______Transport Layer (TCP)______")
-    print(f"Source Port: {src_port}, Destination Port: {dst_port}")
-    print(f"Sequence Number: {sequence}, Acknowledgment: {acknowledgment}")
-    print(f"Data Offset: {offset}, Reserved: {reserved}, Flags: {flags}")
-    print(f"Window Size: {window}, Checksum: {checksum}, Urgent Pointer: {urgent_pointer}")
-    print(f"Options and Padding: {options_and_padding}")
-    print(f"Raw header: {raw_data[:20].hex()}")
-    print("-" * 50)
-
-def print_udp_transport_layer_data(transport_layer, raw_data):
-    """
-    Prints the transport layer details.
-    """
-    src_port, dst_port, length, checksum = transport_layer
-    
-    print("______Transport Layer (UDP)______")
-    print(f"Source Port: {src_port}, Destination Port: {dst_port}")
-    print(f"Length: {length}, Checksum: {checksum}")
-    print(f"Raw header: {raw_data[:8].hex()}")
-    print("-" * 50)
-
 # Application layer
+# Tested Methods: GET, POST, HEAD, PUT, DELETE, OPTIONS, PATCH
+def find_http_method(decoded_data):
+    start_index = -1
+    for i in range(len(decoded_data)):
+        if decoded_data[i:i+3] in ('GET', 'POS', 'HEA', 'PUT', 'DEL', 'OPT', 'PAT'):
+            start_index = i
+            break
+    if start_index == -1:
+        raise ValueError("Failed to find a valid HTTP request line")
+    
+    # Extract the valid HTTP data starting from the Request Line
+    valid_http_data = decoded_data[start_index:]
+    return valid_http_data
+
 def HTTP_application_layer(application_layer_data):
     """
     Parses the application layer data from raw packet data.
@@ -432,15 +393,11 @@ def HTTP_application_layer(application_layer_data):
         
         # Strip any leading/trailing whitespace or non-printable characters
         decoded_data = decoded_data.strip()
+        # Debug: Print the raw decoded data
+        print("Raw STRIP decoded data:", decoded_data)
         
-        start_index = -1
-        for i in range(len(decoded_data)):
-            if decoded_data[i:i+3] in ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'TRACE'):
-                start_index = i
-                break
-        if start_index == -1:
-            return {"Error": "Failed to find a valid HTTP request line"}
-        valid_http_data = decoded_data[start_index:]
+        # Extract methdods from raw decoded data and convert them to a valid http data structure
+        valid_http_data = find_http_method(decoded_data)
         
         # Split the data into lines
         lines = valid_http_data.split('\r\n')
@@ -451,6 +408,9 @@ def HTTP_application_layer(application_layer_data):
         # The first line is the Request Line
         http_data['Request Line'] = request_line
         
+        # Extract the HTTP method from the Request Line
+        method = request_line.split(' ')[0]
+        http_data['Method'] = method
     
         # The rest are Header Fields until an empty line is encountered
         for line in lines[1:]:
@@ -462,14 +422,67 @@ def HTTP_application_layer(application_layer_data):
     except Exception as e:
         print(f"Error parsing HTTP application layer: {e}")
         return {"Error": "Failed to parse HTTP application layer"}
-def print_application_layer_data(application_layer_data):
+
+#HTTP response
+def find_http_status_line(decoded_data):
     """
-    Prints the application layer details.
+    Finds the start index of the HTTP status line in the decoded data.
+    
+    Args:
+    decoded_data (str): The decoded HTTP response data.
+    
+    Returns:
+    dict: A dictionary containing the valid HTTP data or an error message.
     """
-    print("______Application Layer (HTTP)______")
-    for key, value in application_layer_data.items():
-        print(f"{key}: {value}")
-    print("-" * 50)
+    start_index = -1
+    for i in range(len(decoded_data)):
+        if decoded_data[i:i+4] == 'HTTP':
+            start_index = i
+            break
+    
+    if start_index == -1:
+        raise ValueError("Failed to find a valid HTTP status response line")
+
+    # Extract the valid HTTP data starting from the Status Line
+    valid_http_data = decoded_data[start_index:]
+    return valid_http_data
+
+def parse_http_headers_and_body(valid_http_data):
+    """
+    Parses the HTTP headers and body from the valid HTTP data.
+    
+    Args:
+    valid_http_data (str): The valid HTTP data starting from the status line.
+    
+    Returns:
+    dict: A dictionary containing the HTTP headers and body.
+    """
+    
+    # Split the data into lines
+    lines = valid_http_data.split('\r\n')
+    
+    # Initialize the dictionary to store the parsed data
+    http_data = {}
+    
+    # The first line is the Status Line
+    status_line = lines[0]
+    http_data['Status Line'] = status_line
+    
+    # The rest are Header Fields until an empty line is encountered
+    headers_end_index = 1
+    for line in lines[1:]:
+        if line == '':
+            break
+        key, value = line.split(': ', 1)
+        http_data[key] = value
+        headers_end_index += 1
+    
+    # Extract the body of the response
+    body = '\r\n'.join(lines[headers_end_index+1:])
+    if body:
+        http_data['Body'] = body
+    
+    return http_data
 
 def HTTP_response_layer(response_layer_data):
     """
@@ -487,44 +500,24 @@ def HTTP_response_layer(response_layer_data):
         # Decode the raw packet data to a string
         decoded_data = response_layer_data.decode('utf-8', errors='ignore')
         
+        # Debug: Print the raw decoded data
+        # print("Raw decoded data:", decoded_data)
+        
         # Strip any leading/trailing whitespace or non-printable characters
         decoded_data = decoded_data.strip()
         
-        # Find the start of the Status Line
-        start_index = -1
-        for i in range(len(decoded_data)):
-            if decoded_data[i:i+4] == 'HTTP':
-                start_index = i
-                break
+        #Extract http status line and structure raw data 
+        valid_http_data = find_http_status_line(decoded_data)
         
-        if start_index == -1:
-            return {"Error": "Failed to find a valid HTTP status line"}
-        
-        # Extract the valid HTTP data starting from the Status Line
-        valid_http_data = decoded_data[start_index:]
-        
-        # Split the data into lines
-        lines = valid_http_data.split('\r\n')
-        
-        # Initialize the dictionary to store the parsed data
-        http_data = {}
-        
-        # The first line is the Status Line
-        status_line = lines[0]
-        http_data['Status Line'] = status_line
-        
-        # The rest are Header Fields until an empty line is encountered
-        for line in lines[1:]:
-            if line == '':
-                break
-            key, value = line.split(': ', 1)
-            http_data[key] = value
+        # Parse http header and body if it contains (optional)
+        http_data = parse_http_headers_and_body(valid_http_data)
         
         return http_data
     except Exception as e:
         print(f"Error parsing HTTP response layer: {e}")
         return {"Error": "Failed to parse HTTP response layer"}
 
+# Printing Zone
 def print_http_response_layer_data(response_layer_data):
     """
     Prints the HTTP response layer details.
@@ -534,10 +527,68 @@ def print_http_response_layer_data(response_layer_data):
         print(f"{key}: {value}")
     print("-" * 50)
 
+def print_application_layer_data(application_layer_data):
+    """
+    Prints the application layer details.
+    """
+    print("______Application Layer (HTTP)______")
+    for key, value in application_layer_data.items():
+        print(f"{key}: {value}")
+    print("-" * 50)
+
+def print_udp_transport_layer_data(transport_layer, raw_data):
+    """
+    Prints the transport layer details.
+    """
+    src_port, dst_port, length, checksum = transport_layer
+    
+    print("______Transport Layer (UDP)______")
+    print(f"Source Port: {src_port}, Destination Port: {dst_port}")
+    print(f"Length: {length}, Checksum: {checksum}")
+    print(f"Raw header: {raw_data[:8].hex()}")
+    print("-" * 50)
+
+def print_tcp_transport_layer_data(transport_layer, raw_data):
+    """
+    Prints the transport layer details.
+    """
+    src_port, dst_port, sequence, acknowledgment, offset, reserved, flags, window, checksum, urgent_pointer,options_and_padding = transport_layer
+    
+    print("______Transport Layer (TCP)______")
+    print(f"Source Port: {src_port}, Destination Port: {dst_port}")
+    print(f"Sequence Number: {sequence}, Acknowledgment: {acknowledgment}")
+    print(f"Data Offset: {offset}, Reserved: {reserved}, Flags: {flags}")
+    print(f"Window Size: {window}, Checksum: {checksum}, Urgent Pointer: {urgent_pointer}")
+    print(f"Options and Padding: {options_and_padding}")
+    print(f"Raw header: {raw_data[:20].hex()}")
+    print("-" * 50)
+
+def print_ipv6_network_layer_data(network_layer, raw_data):
+    """
+    Prints the IPv6 network layer details.
+    """
+    version, traffic_class, flow_label, payload_length, next_header, hop_limit, src, dst = network_layer
+    print("______Network Layer (IPv6)______")
+    print(f"IP Version: {version}, Traffic Class: {traffic_class}, Flow Label: {flow_label}")
+    print(f"Payload Length: {payload_length}, Next Header: {next_header}, Hop Limit: {hop_limit}")
+    print(f"Source IP: {src}, Destination IP: {dst}")
+    print(f"Raw header: {raw_data[:40].hex()}")
+    print("-" * 50)
+
+def print_network_layer_data(network_layer,raw_data,protocol):
+    """
+    Prints the network layer details.
+    """
+    version, ihl, tos, length, id, flags_fragment, ttl, checksum, src, dst,options_and_padding = network_layer
+    print("______Network Layer______")
+    print(f"IP Version: {version}, Header Length: {ihl}, ToS: {tos}, Total Length: {length}")
+    print(f"Identification: {id}, Flags/Fragment: {flags_fragment}, TTL: {ttl}, Protocol: {protocol}")
+    print(f"Header Checksum: {checksum}")
+    print(f"Source IP: {src}, Destination IP: {dst}")
+    print(f"Options and Padding: {options_and_padding}")
+    print(f"Raw header: {raw_data[:20].hex()}")
+    print("-" * 50)
+
 
 if __name__ == '__main__':
     sniffest_pack()
-
-
-
-
