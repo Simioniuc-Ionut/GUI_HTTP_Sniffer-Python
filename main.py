@@ -109,7 +109,7 @@ def handler_protocols(raw_data):
             print("Unknown protocol")
     except Exception as e:
         print(f"_______Error at parser: {e}")
-        
+
         
 # Tested
 def cleanup_connection(src_port, dsc_port):
