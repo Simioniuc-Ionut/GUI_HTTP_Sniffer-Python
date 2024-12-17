@@ -25,6 +25,8 @@ face cu struct/ctypes
 -https://www.geeksforgeeks.org/tcp-ip-packet-format/
 ### Struct - Library
 -https://docs.python.org/3/library/struct.html#struct.pack
+### PyQt - Framework
+-https://realpython.com/python-pyqt-gui-calculator/
 
 [ Ethernet Frame ]
 | Destination MAC Address (6 bytes) | Source MAC Address (6 bytes) | Protocol Type (2 bytes) |

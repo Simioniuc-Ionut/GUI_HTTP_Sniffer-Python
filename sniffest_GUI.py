@@ -1,8 +1,71 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidget, QTableWidgetItem, QLineEdit, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QComboBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidget, QTableWidgetItem, QLineEdit, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QComboBox,QDialog
 from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtCore import Qt, QRect, QTimer
 import random 
 from datetime import datetime, timedelta
+
+
+class DetailDialog(QDialog):
+    def __init__(self, network_layer_packet=None,transport_layer_packet=None,application_layer_packet=None):
+        super().__init__()
+        self.setWindowTitle("Detalii Pachet")
+        self.setGeometry(100, 100, 400, 300)
+        
+        # Network layer
+        # if network_layer_packet:
+        #     network_layer_layout.addWidget(QLabel("IP Version: " + str(network_layer_packet["IP Version"])))
+        #     network_layer_layout.addWidget(QLabel("Internet Protocol: " + str(network_layer_packet["Internet Protocol"])))
+        #     network_layer_layout.addWidget(QLabel("Source IP: " + str(network_layer_packet["Source IP"])))
+        #     network_layer_layout.addWidget(QLabel("Destination IP: " + str(network_layer_packet["Destination IP"])))
+        
+        # # Transport layer
+        # if transport_layer_packet:
+        #     network_layer_layout.addWidget(QLabel("Transport Protocol: " + str(transport_layer_packet["Transport Protocol"])))
+        #     network_layer_layout.addWidget(QLabel("Source Port: " + str(transport_layer_packet["Source Port"])))
+        
+        network_layer_layout = QVBoxLayout()
+        
+        network_title = QLabel("________________________________Network Layer Information________________________________")
+        network_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        network_layer_layout.addWidget(network_title)
+        network_layer_layout = self.__add_values_from_packet(network_layer_layout, network_layer_packet)
+        
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(network_layer_layout)
+        
+        # Transport layer
+        transport_layer_layout = QVBoxLayout()
+        
+        transport_title = QLabel("________________________________Transport Layer Information________________________________")
+        transport_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        transport_layer_layout.addWidget(transport_title)
+        transport_layer_layout = self.__add_values_from_packet(transport_layer_layout, transport_layer_packet)
+        
+        main_layout.addLayout(transport_layer_layout)
+        
+        # Application layer
+        application_layer_layout = QVBoxLayout()
+        
+        application_title = QLabel("________________________________Application Layer Information________________________________")
+        application_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        application_layer_layout.addWidget(application_title)
+        application_layer_layout = self.__add_values_from_packet(application_layer_layout, application_layer_packet)
+        
+        main_layout.addLayout(network_layer_layout)
+        main_layout.addLayout(transport_layer_layout)
+        main_layout.addLayout(application_layer_layout)
+        
+        self.setLayout(main_layout)
+    
+    def __add_values_from_packet(self,layout, packet):
+        if packet is None:
+            return layout
+    
+        for key, value in packet.items():
+            label = QLabel(f"{key}: {value}")
+            layout.addWidget(label)
+        
+        return layout
 
 class SnifferApp(QMainWindow):
     EXPIRE_TIME = timedelta(seconds=10)  # Expire time 30 seconds
@@ -55,8 +118,8 @@ class SnifferApp(QMainWindow):
         
         # Table
         self.table = QTableWidget(self)
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Source IP", "Destination IP", "Protocol", "HTTP Method"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Source IP", "Destination IP", "Protocol", "HTTP Method","Details"])
         main_layout.addWidget(self.table)
         
         self.filters = []
@@ -69,7 +132,6 @@ class SnifferApp(QMainWindow):
             filter_combo.currentTextChanged.connect(self.apply_filters)
             filter_layout.addWidget(filter_combo)
             self.filters.append(filter_combo)
-        
         
         
         # Timer for real-time updates
@@ -97,6 +159,10 @@ class SnifferApp(QMainWindow):
                     elif col == 1:
                         item.setBackground(QColor("lightgreen"))
                     self.table.setItem(row, col, item)
+                # Add details button
+                details_button = QPushButton("Detalii")
+                details_button.clicked.connect(lambda _, p=packet: self.show_details(p))
+                self.table.setCellWidget(row, 4, details_button)
 
     def packet_matches_filters(self, packet):
         """Check if a packet matches the selected filters."""
@@ -145,7 +211,10 @@ class SnifferApp(QMainWindow):
 
     def apply_filters(self):
         self.update_table()
-
+    def show_details(self, packet):
+        """Display details"""
+        dialog = DetailDialog(packet)
+        dialog.exec()
     def update_data(self):
         # This is where you would call your sniffer_app to get new data
         # For demonstration, we'll just add a random packet
@@ -154,7 +223,9 @@ class SnifferApp(QMainWindow):
             "dst_ip": f"93.184.216.{random.randint(1, 255)}",
             "protocol": random.choice(["HTTP", "HTTPS"]),
             "http_method": random.choice(["GET", "POST", "PUT", "DELETE"]),
-            "timestamp": datetime.now()  
+            "timestamp": datetime.now(),
+            "headers": {"User-Agent": "Mozilla/5.0", "Accept": "text/html"},
+            "payload": "Sample payload data" 
         }
         self.load_data([new_packet])
     
@@ -178,7 +249,9 @@ class SnifferApp(QMainWindow):
 
 
 # Initialize the application
-app = QApplication([])
-window = SnifferApp()
-window.show()
-app.exec()
+def run():
+    app = QApplication([])
+    window = SnifferApp()
+    window.show()
+    app.exec()
+
