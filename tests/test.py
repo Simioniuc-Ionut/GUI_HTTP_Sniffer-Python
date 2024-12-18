@@ -1,6 +1,6 @@
 import unittest
 import time
-from main import parse_http_headers_and_body,find_http_status_line,find_http_method, HTTP_application_layer, HTTP_response_layer, cleanup_connection
+from sniffest_service import parse_http_headers_and_body,find_http_status_line,find_http_method, HTTP_application_layer, HTTP_response_layer, cleanup_connection
 
 
 

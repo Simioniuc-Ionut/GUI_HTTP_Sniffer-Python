@@ -1,5 +1,11 @@
 import unittest
-from main import cleanup_connection, find_http_status_line
+import sys
+import os
+
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from sniffest_service import cleanup_connection, find_http_status_line
 
 fragmented_packets = {}
 
@@ -69,7 +75,7 @@ def process_tcp_segment(data: bytes, src_port: int, dst_port: int, seq_number: i
     }
 
 
-# Simulare trimitere de date
+# Simiulate send data
 class TestReasembleHTTPResponseLayer(unittest.TestCase):
 
     def simulate_data_transfer(self):

@@ -5,9 +5,16 @@ import time
 import re
 import ctypes as ctypes
 from datetime import datetime, timedelta
+import json
+# Here we share de packets between the GUI and the service
+from shared_packets import packet_queue
+from queue import Queue ,Full
+import threading
+
+
 # Dictionary for storing and retrieving fragmented packets
 fragmented_packets = {}
-
+# local_packet_queue = packet_queue
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
@@ -18,7 +25,12 @@ if not is_admin():
     print("Scriptul nu rulează cu privilegii de administrator.")
     exit()
 
-def sniffest_run():
+def sniffest_run(packet_queue : Queue,stop_event: threading.Event):
+    
+    # Here we share de packets between the GUI and the service
+    #Initializing
+    # local_packet_queue = packet_queue
+    
     # Get host
     host = socket.gethostbyname(socket.gethostname())
     print('IP: {}'.format(host))
@@ -37,7 +49,11 @@ def sniffest_run():
     while True:
         # Recive data
         raw_data, addr = conn.recvfrom(65536)
-        print("Address: ", addr)
+        if stop_event.is_set():
+            print("-------Execution is closed by GUI-------")
+            break
+        
+        # print("Address: ", addr)
         # print("Raw data: ", raw_data)
         # Parse packet of raw data
         handler_protocols(raw_data)
@@ -50,19 +66,20 @@ def handler_protocols(raw_data):
         application_layer_packet = {} # Could be request or response
         
         
-        # Network layer
+        #* Network layer
         network_layer_data,transport_layer_raw_data,protocol = IP_header_packet(raw_data)
-        print_network_layer_data(network_layer_data,transport_layer_raw_data,protocol)
+        # print_network_layer_data(network_layer_data,transport_layer_raw_data,protocol)
         
         # Add to dict packet network layer data
         network_layer_packet=ipv4_network_layer_data_to_dict(network_layer_data,protocol)
         sequence_number = 0
         
-        # Transport layer
+        #* Transport layer
+        
         if protocol == 6: # TCP protocol
             try:
                 transport_layer_data,application_layer_raw_data = TCP_Transport_header_packet(transport_layer_raw_data)
-                print_tcp_transport_layer_data(transport_layer_data,application_layer_raw_data)
+                # print_tcp_transport_layer_data(transport_layer_data,application_layer_raw_data)
                 sequence_number = transport_layer_data[2] # Sequence number
                 # Add to dict packet transport layer TCP data
                 transport_layer_packet=tcp_transport_layer_data_to_dict(transport_layer_data)
@@ -90,6 +107,7 @@ def handler_protocols(raw_data):
                     pass
                     # print("TCP acknowledgment packet (ACK).")
                 
+
             except Exception as e:
                 print(f"_______Error at TCP parser: {e}")
                 return
@@ -110,7 +128,8 @@ def handler_protocols(raw_data):
             src_port = -1
             dsc_port = -1
             
-        # Application layer
+        #* Application layer
+        
         # HTTPS request
         if  dsc_port == 443: 
             print("HTTPS protocol")
@@ -121,8 +140,11 @@ def handler_protocols(raw_data):
                 print_application_layer_data(application_layer_data)
                 
                 #  Add to dict packet application layer data
-                application_layer_packet=application_layer_data
-                
+                application_layer_packet=parse_nested_dict(application_layer_data)
+                if 'Body' in application_layer_packet and isinstance(application_layer_packet['Body'], str):
+                    application_layer_packet['Body'] = format_body(application_layer_packet['Body'])
+                    
+                anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,application_layer_packet)
             except Exception as e:
                 print(f"_______Error parsing HTTP application layer: {e}")
 
@@ -136,49 +158,100 @@ def handler_protocols(raw_data):
                 print_http_response_layer_data(response_layer_data)
                 
                 #  Add to dict packet application layer data
-                application_layer_packet=response_layer_data
-                
+                application_layer_packet = parse_nested_dict(response_layer_data)
+                if 'Body' in application_layer_packet and isinstance(application_layer_packet['Body'], str):
+                    application_layer_packet['Body'] = format_body(application_layer_packet['Body'])
+
+                anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,application_layer_packet)
             except Exception as e:
                 print(f"Error parsing HTTP response layer: {e}")
-        else :
+        
+        # Other protocol
+        if src_port != 80 and dsc_port != 80:
             print("Unknown protocol")
-            application_layer_packet.update({"Other protocol:" : "None"})
             
             
-        # Send current packet
-        anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,application_layer_packet)
+        # We won't be able to send all packets bcs most of them are HTTPS or Unkown protocol
+        # anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,application_layer_packet)
     except Exception as e:
         print(f"_______Error at parser: {e}")
         
+total_packets = Queue()
+
+def parse_nested_dict(d : dict) -> dict:
+    """
+    Recursively parse nested dictionaries.
+    """
+    parsed_dict = {}
+    for key, value in d.items():
+        if isinstance(value, dict):
+            parsed_dict[key] = parse_nested_dict(value)
+        else:
+            parsed_dict[key] = value.replace('\n', '')
+    return parsed_dict
+def format_body(body_str):
+    """
+    Format the body string to remove escape characters.
+    """
+    try:
+        body_json = json.loads(body_str)
+        return body_json
+    except json.JSONDecodeError:
+        return body_str
+
+def get_first_element_of_request_line(application_layer_packet):
+    """
+    Get the first element of the Request Line from the application layer packet.
+    """
+    try:
+        request_line= application_layer_packet.get('Status Line',None).split(" ")[1] if 'Status Line' in application_layer_packet else application_layer_packet.get('Request Line',None).split(" ")[0]
+        return request_line
+    except Exception as e:
+        return None
+def get_protocol_from_packet(transport_layer_packet):
+    """
+    Get the protocol from transport layer packet.
+    """
+    if transport_layer_packet.get("destination_port") == 443 or transport_layer_packet.get("source_port") == 443:
+        return "HTTPS"
+    elif transport_layer_packet.get("source_port") == 80 or transport_layer_packet.get("destination_port") == 80:
+        return "HTTP"
+    else : return "Other"
 
 def anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,application_layer_packet):
     """
     Assemble the full packet by combining the parsed network, transport, and application layers
     """
-    
-    # full_pack = {
-    #     "ip_version": network_layer_packet.get("ip_version"),
-    #     "src_ip": network_layer_packet.get("src_ip"),
-    #     "dst_ip": network_layer_packet.get("dst_ip"),
-    #     "protocol": network_layer_packet.get("protocol"),
-    #     "source_port": transport_layer_packet.get("source_port"),
-    #     "destination_port": transport_layer_packet.get("destination_port"),
-    #     "flags": transport_layer_packet.get("flags"),  # TCP-specific
-    #     "sequence_number": transport_layer_packet.get("sequence_number"),  # TCP-specific
-    #     "checksum": transport_layer_packet.get("checksum"),
-    #     "http_method": application_layer_packet.get("Method", None),  # Example key for HTTP
-    #     "http_host": application_layer_packet.get("Host", None),
-    #     "http_url": application_layer_packet.get("URL", None),
-    #     "timestamp": datetime.now(),
-    #     "payload": { "network_layer_packet": network_layer_packet,
-    #                 "transport_layer_packet": transport_layer_packet,
-    #                 "application_layer_packet": application_layer_packet}
-    # }
-    print("________________________Network Layer Packet________________________",network_layer_packet)
-    print("________________________Transport Layer Packet________________________",transport_layer_packet)
-    print("________________________Application Layer Packet________________________",application_layer_packet)
-        
-    
+    # print("================================================application_layer_packet================================================",application_layer_packet)
+    full_pack = {
+        # "ip_version": network_layer_packet.get("ip_version"),
+        "src_ip": network_layer_packet.get("src_ip"),
+        "dst_ip": network_layer_packet.get("dst_ip"),
+        "source_port": transport_layer_packet.get("source_port"),
+        "destination_port": transport_layer_packet.get("destination_port"),
+        "protocol": get_protocol_from_packet(transport_layer_packet),
+        "http_method":get_first_element_of_request_line(application_layer_packet),  # Example key for HTTP
+        "http_url": application_layer_packet.get("Body", {}).get("url", None) if isinstance(application_layer_packet.get("Body"), dict) else None,
+        "http_host": application_layer_packet.get("Body", {}).get('headers',{}).get("Host", None) if isinstance(application_layer_packet.get("Body"), dict) else application_layer_packet.get("Headers", {}).get("Host", None),
+        "flags": transport_layer_packet.get("flags"),  # TCP-specific
+        "sequence_number":  str(transport_layer_packet.get("sequence_number", "N/A")),  # TCP-specific
+        "checksum": str(transport_layer_packet.get("checksum", "N/A")),  
+        "timestamp": datetime.now(),
+        "payload": { "network_layer_packet": network_layer_packet,
+                    "transport_layer_packet": transport_layer_packet,
+                    "application_layer_packet": application_layer_packet}
+    }
+
+        # print("________________________Application Layer Packet________________________",application_layer_packet)
+    try:
+        # print("----------LOCAL PACKET QUEUE BEFORE SENDING -------------",full_pack)
+        packet_queue.put(full_pack)
+
+    except Full:
+        print("_______Error: Packet queue is full, could not send packet.")
+    except Exception as e:
+        print(f"_______Error at sending packet in packet queue: {e}")
+
 
 # Tested
 def cleanup_connection(src_port, dsc_port):
@@ -437,26 +510,19 @@ def UDP_Transport_header_packet(data : bytes) -> tuple:
     Checksum (2 bytes)
     '''
     try:
-        # Unpacking the first 8 bytes of the transport layer header
-        udp_transport_header = struct.unpack('!HHHH', data[:8])
+        # Verify length of data
+        if len(data) < 8:
+            raise ValueError("Data too short to contain a valid UDP header")
         
-        # Source Port (2 bytes)
-        src_port = udp_transport_header[0]
-        # Destination Port (2 bytes)
-        dst_port = udp_transport_header[1]
-        # Length (2 bytes)
-        length = udp_transport_header[2]
-        # Checksum (2 bytes)
-        checksum = udp_transport_header[3]
+        # Unpack header UDP
+        src_port, dst_port, length, checksum = struct.unpack('!HHHH', data[:8])
+        udp_header = (src_port, dst_port, length, checksum)
         
-        # Rest of the packet
-        rest_of_packet = data[8:]
-        
-        # Return the unpacked data
-        return (src_port, dst_port, length, checksum), rest_of_packet
+        # Return header and rest of packet
+        return udp_header, data[8:]
     except Exception as e:
         print(f"______Error parsing UDP transport header: {e}")
-        return None, None
+        return None, data
 
 ### Application layer
 
@@ -512,6 +578,8 @@ def find_body(bod_data) -> bytes:
     
     # Extract the HTTP body starting from the double CRLF delimiter
     body_data = bod_data[i:]
+    
+
     return body_data
 
 # Tested
@@ -916,5 +984,6 @@ def ipv6_network_layer_data_to_dict(network_layer : tuple) -> dict:
 
 
 if __name__ == '__main__':
-    sniffest_run()
+    stop_event = threading.Event()
+    sniffest_run(None,stop_event)
 
