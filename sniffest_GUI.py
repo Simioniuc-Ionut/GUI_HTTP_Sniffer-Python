@@ -11,6 +11,14 @@ import threading
 
 
 class DetailDialog(QDialog):
+    """
+    A dialog window that displays detailed information about a network packet.
+    Attributes:
+        packet (dict): The packet data to be displayed in the dialog.
+    Methods:
+        __add_values_from_packet(layout, packet, indent=0):
+            Recursively adds key-value pairs from the packet to the layout.
+    """
     def __init__(self,packet ):
         super().__init__()
         self.setWindowTitle("Detalii Pachet")
@@ -79,7 +87,36 @@ class DetailDialog(QDialog):
 
         return layout
 class SnifferApp(QMainWindow):
-    
+    """"
+        A GUI application for HTTP packet sniffing.
+        Attributes:
+            EXPIRE_TIME (timedelta): The time after which packets expire.
+            EXPECTED_COLUMNS (list): The expected columns for the packet table.
+            filters (list): List of QComboBox filters for each column.
+            all_packets (list): List to store all packets.
+            table (QTableWidget): The table widget to display packets.
+            timer (QTimer): Timer for real-time updates.
+            cleanup_timer (QTimer): Timer for cleaning up expired packets.
+        Methods:
+            __init__(packet_queue: Queue, stop_event: threading.Event):
+                Initializes the SnifferApp with the given packet queue and stop event.
+            update_table():
+                Updates the table based on filtered packets.
+            packet_matches_filters(packet):
+                Checks if a packet matches the selected filters.
+            load_data(packets):
+                Loads new packets and updates filters with new values.
+            update_filter_options():
+                Updates filter options based on unique values in the packets.
+            apply_filters():
+                Applies the selected filters to the packet table.
+            show_details(packet):
+                Displays details of a packet in a dialog.
+            update_data():
+                Updates the table with new packets.
+            cleanup_expired_packets():
+            Deletes expired packets from the list.
+        """
     EXPIRE_TIME = timedelta(seconds=60)  # Expire time 30 seconds
     EXPECTED_COLUMNS= ["src_ip", "dst_ip","source_port","destination_port", "protocol","http_method","http_url","http_host","flags","sequence_number","checksum"]
 
@@ -218,8 +255,6 @@ class SnifferApp(QMainWindow):
                 if str(value) not in [filter_combo.itemText(i) for i in range(filter_combo.count())]:
                     filter_combo.addItem(str(value))
         self.update_table()  # Refresh the table with new packets
-    
-            
             
     def update_filter_options(self):
         """Update filter options based on unique values in the packets."""

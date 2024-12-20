@@ -26,10 +26,17 @@ if not is_admin():
     exit()
 
 def sniffest_run(packet_queue : Queue,stop_event: threading.Event):
-    
-    # Here we share de packets between the GUI and the service
-    #Initializing
-    # local_packet_queue = packet_queue
+    """
+    Starts the packet sniffing process.
+    This function creates a raw socket, binds it to the host's IP address, and enables promiscuous mode to capture all packets.
+    It continuously listens for incoming packets and processes them until the stop_event is set.
+    Args:
+        packet_queue (Queue): A queue to store captured packets.
+        stop_event (threading.Event): An event to signal when to stop the sniffing process.
+    Prints:
+        The IP address of the host.
+        A message indicating that execution is closed by the GUI when the stop_event is set.
+    """
     
     # Get host
     host = socket.gethostbyname(socket.gethostname())
@@ -59,6 +66,33 @@ def sniffest_run(packet_queue : Queue,stop_event: threading.Event):
         handler_protocols(raw_data)
 
 def handler_protocols(raw_data):
+    """
+    Handles the parsing of raw network data into structured protocol layers (network, transport, and application).
+    Args:
+        raw_data (bytes): The raw packet data to be parsed.
+    Raises:
+        Exception: If there is an error during parsing of any protocol layer.
+    Network Layer:
+        Parses the IP header and extracts network layer information.
+    Transport Layer:
+        Parses the transport layer based on the protocol (TCP/UDP).
+        - For TCP:
+            - Extracts TCP header information.
+            - Handles TCP flags (FIN, RST, ACK).
+            - Cleans up connections on FIN and RST flags.
+        - For UDP:
+            - Extracts UDP header information.
+    Application Layer:
+        Parses the application layer based on the destination/source port.
+        - For HTTP (port 80):
+            - Processes HTTP requests and responses.
+            - Formats and assembles the full packet.
+        - For HTTPS (port 443):
+            - Marks the packet as HTTPS secured.
+    Notes:
+        - Unknown protocols and non-HTTP/HTTPS traffic are identified but not processed further.
+        - The function assembles and sends the full packet for HTTP traffic.
+    """
     try:
         # Here we have the packet defined
         network_layer_packet = {}
@@ -243,6 +277,7 @@ def anssemble_full_packet_and_send(network_layer_packet,transport_layer_packet,a
     }
 
         # print("________________________Application Layer Packet________________________",application_layer_packet)
+    print("________________________Full Packet________________________",full_pack)
     try:
         # print("----------LOCAL PACKET QUEUE BEFORE SENDING -------------",full_pack)
         packet_queue.put(full_pack)

@@ -32,21 +32,20 @@ Filtrare: Utilizatorii pot filtra pachetele afisate pe baza diferitelor criterii
 Detalii Pachet: Utilizatorii pot vizualiza detalii suplimentare despre fiecare pachet intr-o fereastra separata, cu toate informatiile capturate, parsate, structurate pe straturi (network, transport, application).
 Serviciul de Sniffer (sniffer-service)
 Serviciul de sniffer este responsabil pentru capturarea pachetelor de retea si trimiterea acestora catre interfata grafica pentru vizualizare si analiza.
-
-Functionalitati Cheie:
-Se conecteaza prin socket la retea: Obtine pachetele cu STREAM_RAW. Obtine modul promiscuu initial pentru a putea avea permisiunea de la SO pentru captarea pachetelor. (Atentie: unele SO pot avea anumite restrictii in privinta capturarii pachetelor)
-Capturarea Pachetelor: Utilizarea bibliotecii precum struct pentru capturarea pachetelor de retea.
+Capturarea Pachetelor: Se conecteaza prin socket la retea: Obtine pachetele cu STREAM_RAW. Obtine modul promiscuu initial pentru a putea avea permisiunea de la SO pentru captarea pachetelor. (Atentie: unele SO pot avea anumite restrictii in privinta capturarii pachetelor)
+Se capteaza pachetele raw de pe retea ,si se returneaaza pachetul impreuna cu headerul si payload -ul.
+Parsarea Pachetelor: S a folosit struct pentru formatarea ,parsarea,si interpretarea pachetelor de retea.Incepand de la network layer ,transport layer si pana la aplication layer,raw_data este formatat,parsat si adaugat la dicntionarul final,pachetul trecand prin toate aceste straturi.Sunt tratate diferite scenarii,precum ifnorarea diferitiloe octeti corupti la inceputul/sfarsitul pachetelor,fragmentarea pachetelor,reordonarea/reasamblarea acestora dupa sequence number, tratarea scenariilor folosind flaguri precum FIN si RST, in care se inchid conexiunile si alte scenarii.
 Analiza Pachetelor: Pachetele capturate sunt analizate si structurate pe straturi (network, transport, application).
 Trimiterea Pachetelor: Pachetele analizate sunt trimise catre interfata grafica prin intermediul unei cozi partajate thread-safe (Queue).
 Producer-Consumers: Se foloseste abordarea de producator-consumator, sniffer_service-ul produce pachete, iar GUI-ul le consuma, dintr-o coada Queue partajata pentru ambele threaduri.
+
 Fluxul Aplicatiei
 Initializare:
-
 Aplicatia initializeaza componentele GUI si serviciul de sniffer.
 Se creeaza o coada partajata (Queue) pentru comunicarea intre GUI si serviciul de sniffer.
 Se pornesc thread-urile pentru GUI si serviciul de sniffer.
-Capturarea Pachetelor:
 
+Capturarea Pachetelor:
 Serviciul de sniffer captureaza pachetele de retea.
 Pachetele capturate sunt analizate si structurate pe straturi.
 Apoi se formeaza un dictionar cu toate datele necesare pentru afisare in GUI.
@@ -59,10 +58,12 @@ Afisarea Pachetelor:
 GUI-ul preia pachetele din coada si le afiseaza in tabel.
 Utilizatorii pot filtra si vizualiza detalii suplimentare despre pachetele capturate.
 La un interval de timp stabilit, GUI sterge din pachetele al caror timestamp a expirat, pentru a face recycle la memorie.
+
 Concluzie
 Proiectul Sniffest HTTP Python ofera o solutie completa pentru capturarea si analiza pachetelor HTTP, combinand o interfata grafica intuitiva cu un serviciu de sniffer robust. Utilizarea bibliotecilor si modulelor Python asigura o functionalitate eficienta si extensibila, permitand utilizatorilor sa vizualizeze si sa analizeze traficul de retea intr-un mod detaliat si structurat.
 
-
+Concepte/tehnologii folosite : Socket,Struct,PyQt6,Unpacking,formating,parsing network packs,threading concepts.TCP/IP Model.
+Language : Python
 ----------------------------------------------------------------
 ### Testing Site Web ####
 #### - -  for testing local routes in network I used next site:

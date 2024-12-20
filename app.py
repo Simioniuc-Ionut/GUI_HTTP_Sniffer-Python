@@ -13,6 +13,7 @@ def run_sniffest_GUI(packet_queue : Queue, stop_event : threading.Event):
     sniffest_GUI.GUI_run(packet_queue, stop_event)
 
 if __name__ == '__main__':
+  
     # Create threads for sniffest_service and sniffest_GUI
     packet_queue = Queue()
     stop_event = threading.Event()
