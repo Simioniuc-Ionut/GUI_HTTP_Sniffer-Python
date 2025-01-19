@@ -62,8 +62,11 @@ La un interval de timp stabilit, GUI sterge din pachetele al caror timestamp a e
 Concluzie
 Proiectul Sniffest HTTP Python ofera o solutie completa pentru capturarea si analiza pachetelor HTTP, combinand o interfata grafica intuitiva cu un serviciu de sniffer robust. Utilizarea bibliotecilor si modulelor Python asigura o functionalitate eficienta si extensibila, permitand utilizatorilor sa vizualizeze si sa analizeze traficul de retea intr-un mod detaliat si structurat.
 
-Concepte/tehnologii folosite : Socket,Struct,PyQt6,Unpacking,formating,parsing network packs,threading concepts.TCP/IP Model.
+## Concepte/tehnologii folosite : 
+Socket,Struct,PyQt6,Unpacking,formating,parsing network packs,threading concepts.TCP/IP Model.
+
 Language : Python
+
 ----------------------------------------------------------------
 ### Testing Site Web ####
 #### - -  for testing local routes in network I used next site:
