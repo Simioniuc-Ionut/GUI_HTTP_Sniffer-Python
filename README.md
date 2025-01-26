@@ -66,6 +66,10 @@ Proiectul Sniffest HTTP Python ofera o solutie completa pentru capturarea si ana
 Socket,Struct,PyQt6,Unpacking,formating,parsing network packs,threading concepts.TCP/IP Model.
 
 Language : Python
+## Application interface
+<img src = "imgs\Screenshot 2024-12-18 201431.png">
+<img src = "imgs\Screenshot 2024-12-18 201420.png">
+
 
 ----------------------------------------------------------------
 ### Testing Site Web ####
@@ -115,4 +119,6 @@ Language : Python
 <img src = "imgs/Transport-TCP-Layer.png">
 <img src = "imgs/Transport-UDP-Layer.png">
 <img src = "imgs/Application-Layer.png">
+
+
 
